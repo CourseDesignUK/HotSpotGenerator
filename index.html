@@ -1,6 +1,46 @@
-    [,] ASSEMBLE<br>
-    [,] ASSEMBLE<br>
-    MOUSE OVER TO IDENTIFY
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Component Explorer</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0a0a0a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ffffff;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 3px solid #00ff00;
+        }
+        #label {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ff00;
+            font-size: 1.4rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0,255,0,0.5);
+            background: rgba(0,0,0,0.8);
+            padding: 10px 25px;
+            border: 1px solid #333;
+            display: none;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    HOLD [.] EXPLODE | [,] ASSEMBLE<br>
+    HOLD [=] ENLARGE | [-] SHRINK<br>
+    MOUSE DRAG TO ROTATE | SCROLL TO ZOOM
 </div>
 <div id="label"></div>
 
@@ -16,25 +56,145 @@
 <script type="module">
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     const label = document.getElementById('label');
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
-    directionalLight.position.set(5, 5, 5);
-    scene.add(directionalLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
 
+    let modelRoot = new THREE.Group();
     let components = [];
+    let explodeTarget = 0;
+    let currentExplode = 0;
+    
+    let baseScale = 1.0;
+    let targetScale = 1.0;
+    
+    const keys = { 
+        period: false, 
+        comma: false, 
+        equals: false, 
+        minus: false 
+    };
+
+    const loader = new GLTFLoader();
+    loader.load('90l_fire_extinguisher.glb', (gltf) => {
+        const model = gltf.scene;
+        
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        
+        // Initial normalization: fit to reference height
+        const targetHeight = 2.0; 
+        baseScale = targetHeight / size.y;
+        targetScale = baseScale;
+        
+        model.position.sub(center);
+        modelRoot.add(model);
+        modelRoot.scale.set(baseScale, baseScale, baseScale);
+
+        model.traverse((child) => {
+            if (child.isMesh) {
+                child.userData.originalPos = child.position.clone();
+                child.geometry.computeBoundingBox();
+                const meshCenter = new THREE.Vector3();
+                child.geometry.boundingBox.getCenter(meshCenter);
+                child.userData.explodeVec = meshCenter.normalize();
+                components.push(child);
+            }
+        });
+
+        scene.add(modelRoot);
+        camera.position.set(0, 0, 5);
+        controls.update();
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === '.') keys.period = true;
+        if (e.key === ',') keys.comma = true;
+        if (e.key === '=') keys.equals = true;
+        if (e.key === '-') keys.minus = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (e.key === '.') keys.period = false;
+        if (e.key === ',') keys.comma = false;
+        if (e.key === '=') keys.equals = false;
+        if (e.key === '-') keys.minus = false;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Explosion handling
+        if (keys.period) explodeTarget += 0.02;
+        if (keys.comma) explodeTarget -= 0.02;
+        explodeTarget = Math.max(0, Math.min(explodeTarget, 3.0));
+        currentExplode += (explodeTarget - currentExplode) * 0.1;
+
+        // Scaling handling
+        if (keys.equals) targetScale *= 1.02;
+        if (keys.minus) targetScale *= 0.98;
+        targetScale = Math.max(0.1, Math.min(targetScale, 10.0));
+        
+        const s = modelRoot.scale.x + (targetScale - modelRoot.scale.x) * 0.1;
+        modelRoot.scale.set(s, s, s);
+
+        components.forEach(mesh => {
+            const shift = mesh.userData.explodeVec.clone().multiplyScalar(currentExplode);
+            mesh.position.copy(mesh.userData.originalPos).add(shift);
+        });
+
+        controls.update();
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(components);
+
+        if (intersects.length > 0) {
+            const target = intersects[0].object;
+            label.style.display = 'block';
+            label.innerText = target.name || "Component Part";
+            components.forEach(m => m.material.emissive?.setHex(0x000000));
+            if(target.material.emissive) target.material.emissive.setHex(0x333333);
+        } else {
+            label.style.display = 'none';
+            components.forEach(m => m.material.emissive?.setHex(0x000000));
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html>    let components = [];
     let explodeFactor = 0;
 
     const loader = new GLTFLoader();
