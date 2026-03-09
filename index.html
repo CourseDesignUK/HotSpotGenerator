@@ -3,224 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hotspot Editor</title>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <title>3D Exploded View Controller</title>
     <style>
-        :root {
-            --primary: #2563eb;
-            --bg: #f8fafc;
-            --sidebar: #ffffff;
-        }
-
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            height: 100vh;
-            background-color: var(--bg);
-            overflow: hidden;
-        }
-
-        /* --- Sidebar Styles --- */
-        #sidebar {
-            width: 350px;
-            background: var(--sidebar);
-            border-right: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
-            z-index: 10;
-        }
-
-        h2 { margin-top: 0; font-size: 1.2rem; color: #1e293b; }
-        p { font-size: 0.9rem; color: #64748b; line-height: 1.4; }
-
-        .hotspot-list-item {
-            background: #f1f5f9;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        input {
-            padding: 8px;
-            border: 1px solid #cbd5e1;
-            border-radius: 4px;
-            font-size: 0.85rem;
-        }
-
-        .btn-delete {
-            background: #ef4444;
-            color: white;
-            border: none;
-            padding: 5px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.75rem;
-        }
-
-        #export-btn {
-            margin-top: auto;
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        /* --- Viewer Styles --- */
-        #viewer-container {
-            flex-grow: 1;
-            position: relative;
-        }
-
-        model-viewer {
-            width: 100%;
-            height: 100%;
-            background-color: #eee;
-        }
-
-        /* --- Hotspot Look & Feel --- */
-        .hotspot {
-            background: var(--primary);
-            border-radius: 50%;
-            border: 2px solid white;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            width: 24px;
-            height: 24px;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .hotspot:not([data-visible]) {
-            opacity: 0.3;
-            pointer-events: none;
-        }
-
-        .annotation {
+        body { margin: 0; overflow: hidden; background: #050505; font-family: monospace; }
+        #ui {
             position: absolute;
-            background: white;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transform: translate(20px, -20px);
-            white-space: nowrap;
+            top: 20px;
+            left: 20px;
+            color: #00ff00;
             pointer-events: none;
+            text-transform: uppercase;
+        }
+        #label {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffffff;
+            font-size: 1.5rem;
+            background: rgba(0,0,0,0.8);
+            padding: 10px 20px;
+            border: 1px solid #444;
+            display: none;
         }
     </style>
 </head>
 <body>
 
-    <div id="sidebar">
-        <h2>Hotspot Editor</h2>
-        <p>Click anywhere on the model to place a new hotspot marker.</p>
-        <hr style="width:100%; border:0; border-top:1px solid #eee; margin: 20px 0;">
+<div id="ui">
+    [.] - Explode Components<br>
+    [,] - Reassemble Components<br>
+    [Mouse Over] - Identify Parts
+</div>
+<div id="label"></div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    // Initialization
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const label = document.getElementById('label');
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    const pointLight = new THREE.PointLight(0xffffff, 1);
+    pointLight.position.set(10, 10, 10);
+    scene.add(pointLight);
+
+    // Model Construction (Component Group)
+    const modelGroup = new THREE.Group();
+    const components = [];
+
+    const partData = [
+        { name: "Core Module", color: 0xff0000, pos: [0, 0, 0], dim: [1, 1, 1] },
+        { name: "Left Wing", color: 0x00ff00, pos: [-1.5, 0, 0], dim: [2, 0.2, 1] },
+        { name: "Right Wing", color: 0x00ff00, pos: [1.5, 0, 0], dim: [2, 0.2, 1] },
+        { name: "Top Sensor", color: 0x0000ff, pos: [0, 1, 0], dim: [0.5, 0.5, 0.5] },
+        { name: "Front Lens", color: 0xffff00, pos: [0, 0, 1], dim: [0.8, 0.8, 0.2] }
+    ];
+
+    partData.forEach(data => {
+        const geometry = new THREE.BoxGeometry(...data.dim);
+        const material = new THREE.MeshStandardMaterial({ color: data.color });
+        const mesh = new THREE.Mesh(geometry, material);
         
-        <div id="hotspot-list" style="flex-grow: 1; overflow-y: auto;">
-            </div>
+        mesh.userData.name = data.name;
+        mesh.userData.originalPos = new THREE.Vector3(...data.pos);
+        mesh.position.set(...data.pos);
+        
+        components.push(mesh);
+        modelGroup.add(mesh);
+    });
 
-        <button id="export-btn">Copy JSON Config</button>
-    </div>
+    scene.add(modelGroup);
+    camera.position.z = 8;
 
-    <div id="viewer-container">
-        <model-viewer 
-            id="editor-viewer"
-            src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
-            ar
-            camera-controls
-            touch-action="none"
-            shadow-intensity="1">
-        </model-viewer>
-    </div>
+    // Explosion Logic
+    let explodeFactor = 0;
+    const explodeSpeed = 0.05;
 
-    <script>
-        const viewer = document.querySelector("#editor-viewer");
-        const listContainer = document.querySelector("#hotspot-list");
-        const exportBtn = document.querySelector("#export-btn");
-        let hotspotCount = 0;
+    window.addEventListener('keydown', (e) => {
+        if (e.key === '.') explodeFactor += explodeSpeed;
+        if (e.key === ',') explodeFactor = Math.max(0, explodeFactor - explodeSpeed);
+    });
 
-        // 1. Listen for clicks on the model
-        viewer.addEventListener("click", (event) => {
-            const hit = viewer.surfaceFromPoint(event.clientX, event.clientY);
-            if (hit) {
-                createHotspot(hit);
-            }
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Update Component Positions
+        components.forEach(mesh => {
+            const offset = mesh.userData.originalPos.clone().multiplyScalar(explodeFactor);
+            mesh.position.copy(mesh.userData.originalPos).add(offset);
         });
 
-        function createHotspot(hit) {
-            hotspotCount++;
-            const id = `hs-${hotspotCount}`;
-            const { position, normal } = hit;
+        // Raycasting for Identification
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(components);
 
-            // Create the Actual Hotspot Element
-            const hsButton = document.createElement('button');
-            hsButton.className = 'hotspot';
-            hsButton.slot = `hotspot-${id}`;
-            hsButton.dataset.position = position.toString();
-            hsButton.dataset.normal = normal.toString();
-            hsButton.id = id;
-
-            const annotation = document.createElement('div');
-            annotation.className = 'annotation';
-            annotation.id = `label-${id}`;
-            annotation.textContent = `Point ${hotspotCount}`;
-            hsButton.appendChild(annotation);
-
-            viewer.appendChild(hsButton);
-
-            // Create Sidebar Controls
-            addSidebarControl(id, annotation.textContent);
+        if (intersects.length > 0) {
+            label.style.display = 'block';
+            label.innerText = intersects[0].object.userData.name;
+            intersects[0].object.material.emissive.setHex(0x333333);
+        } else {
+            label.style.display = 'none';
+            components.forEach(m => m.material.emissive.setHex(0x000000));
         }
 
-        function addSidebarControl(id, currentText) {
-            const item = document.createElement('div');
-            item.className = 'hotspot-list-item';
-            item.id = `control-${id}`;
-            item.innerHTML = `
-                <label><b>Label ${id}:</b></label>
-                <input type="text" value="${currentText}" oninput="updateLabel('${id}', this.value)">
-                <button class="btn-delete" onclick="removeHotspot('${id}')">Delete</button>
-            `;
-            listContainer.appendChild(item);
-        }
+        modelGroup.rotation.y += 0.005;
+        renderer.render(scene, camera);
+    }
 
-        window.updateLabel = (id, text) => {
-            const label = document.getElementById(`label-${id}`);
-            if (label) label.textContent = text;
-        };
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 
-        window.removeHotspot = (id) => {
-            const hs = document.getElementById(id);
-            const ctrl = document.getElementById(`control-${id}`);
-            if (hs) hs.remove();
-            if (ctrl) ctrl.remove();
-        };
-
-        // Export Functionality
-        exportBtn.addEventListener("click", () => {
-            const hotspots = [];
-            document.querySelectorAll('.hotspot').forEach(hs => {
-                hotspots.push({
-                    slot: hs.slot,
-                    position: hs.dataset.position,
-                    normal: hs.dataset.normal,
-                    text: hs.querySelector('.annotation').textContent
-                });
-            });
-
-            const json = JSON.stringify(hotspots, null, 2);
-            navigator.clipboard.writeText(json);
-            alert("Config copied to clipboard!");
-            console.log(json);
-        });
-    </script>
+    animate();
+</script>
 </body>
 </html>
