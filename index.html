@@ -3,104 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Exploded View Controller</title>
+    <title>3D Model Exploder</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #050505; font-family: monospace; }
+        body { margin: 0; overflow: hidden; background: #111; font-family: monospace; }
         #ui {
             position: absolute;
             top: 20px;
             left: 20px;
-            color: #00ff00;
+            color: #fff;
             pointer-events: none;
-            text-transform: uppercase;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
         }
         #label {
             position: absolute;
-            bottom: 20px;
+            bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
-            color: #ffffff;
-            font-size: 1.5rem;
+            color: #00ff00;
+            font-size: 1.2rem;
             background: rgba(0,0,0,0.8);
-            padding: 10px 20px;
-            border: 1px solid #444;
+            padding: 8px 16px;
+            border: 1px solid #00ff00;
             display: none;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    [.] - Explode Components<br>
-    [,] - Reassemble Components<br>
-    [Mouse Over] - Identify Parts
+    [.] PULL APART<br>
+    [,] ASSEMBLE<br>
+    MOUSE OVER TO IDENTIFY
 </div>
 <div id="label"></div>
 
 <script type="importmap">
     {
         "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
         }
     }
 </script>
 
 <script type="module">
     import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-    // Initialization
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     const label = document.getElementById('label');
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
     scene.add(ambientLight);
-    const pointLight = new THREE.PointLight(0xffffff, 1);
-    pointLight.position.set(10, 10, 10);
-    scene.add(pointLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+    directionalLight.position.set(5, 5, 5);
+    scene.add(directionalLight);
 
-    // Model Construction (Component Group)
-    const modelGroup = new THREE.Group();
-    const components = [];
+    let components = [];
+    let explodeFactor = 0;
 
-    const partData = [
-        { name: "Core Module", color: 0xff0000, pos: [0, 0, 0], dim: [1, 1, 1] },
-        { name: "Left Wing", color: 0x00ff00, pos: [-1.5, 0, 0], dim: [2, 0.2, 1] },
-        { name: "Right Wing", color: 0x00ff00, pos: [1.5, 0, 0], dim: [2, 0.2, 1] },
-        { name: "Top Sensor", color: 0x0000ff, pos: [0, 1, 0], dim: [0.5, 0.5, 0.5] },
-        { name: "Front Lens", color: 0xffff00, pos: [0, 0, 1], dim: [0.8, 0.8, 0.2] }
-    ];
-
-    partData.forEach(data => {
-        const geometry = new THREE.BoxGeometry(...data.dim);
-        const material = new THREE.MeshStandardMaterial({ color: data.color });
-        const mesh = new THREE.Mesh(geometry, material);
+    const loader = new GLTFLoader();
+    // Path relative to the current environment
+    loader.load('90l_fire_extinguisher.glb', (gltf) => {
+        const model = gltf.scene;
         
-        mesh.userData.name = data.name;
-        mesh.userData.originalPos = new THREE.Vector3(...data.pos);
-        mesh.position.set(...data.pos);
-        
-        components.push(mesh);
-        modelGroup.add(mesh);
+        // Center model
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.sub(center);
+
+        model.traverse((child) => {
+            if (child.isMesh) {
+                // Store world position for explosion vector calculation
+                const worldPos = new THREE.Vector3();
+                child.getWorldPosition(worldPos);
+                
+                child.userData.originalPos = child.position.clone();
+                // Explosion vector is direction from model center (0,0,0) to part center
+                child.userData.explodeVec = worldPos.clone().normalize();
+                
+                components.push(child);
+            }
+        });
+
+        scene.add(model);
+        camera.position.set(0, 0.2, 0.8);
+    }, undefined, (error) => {
+        console.error('Error loading model:', error);
     });
 
-    scene.add(modelGroup);
-    camera.position.z = 8;
-
-    // Explosion Logic
-    let explodeFactor = 0;
-    const explodeSpeed = 0.05;
-
     window.addEventListener('keydown', (e) => {
-        if (e.key === '.') explodeFactor += explodeSpeed;
-        if (e.key === ',') explodeFactor = Math.max(0, explodeFactor - explodeSpeed);
+        if (e.key === '.') explodeFactor += 0.05;
+        if (e.key === ',') explodeFactor = Math.max(0, explodeFactor - 0.05);
     });
 
     window.addEventListener('mousemove', (e) => {
@@ -111,26 +115,26 @@
     function animate() {
         requestAnimationFrame(animate);
 
-        // Update Component Positions
         components.forEach(mesh => {
-            const offset = mesh.userData.originalPos.clone().multiplyScalar(explodeFactor);
-            mesh.position.copy(mesh.userData.originalPos).add(offset);
+            const shift = mesh.userData.explodeVec.clone().multiplyScalar(explodeFactor);
+            mesh.position.copy(mesh.userData.originalPos).add(shift);
         });
 
-        // Raycasting for Identification
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(components);
 
         if (intersects.length > 0) {
+            const target = intersects[0].object;
             label.style.display = 'block';
-            label.innerText = intersects[0].object.userData.name;
-            intersects[0].object.material.emissive.setHex(0x333333);
+            label.innerText = target.name || "Unnamed Component";
+            
+            components.forEach(m => m.material.emissive?.setHex(0x000000));
+            if(target.material.emissive) target.material.emissive.setHex(0x222222);
         } else {
             label.style.display = 'none';
-            components.forEach(m => m.material.emissive.setHex(0x000000));
+            components.forEach(m => m.material.emissive?.setHex(0x000000));
         }
 
-        modelGroup.rotation.y += 0.005;
         renderer.render(scene, camera);
     }
 
