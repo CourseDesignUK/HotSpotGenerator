@@ -5,36 +5,228 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Component Explorer</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #0a0a0a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #ui {
+        :root {
+            --brand-cyan: #00e5ff;
+            --brand-dark: #0a0a0a;
+            --ui-bg: rgba(10, 10, 10, 0.85);
+        }
+        body { margin: 0; overflow: hidden; background: var(--brand-dark); font-family: 'Inter', sans-serif; }
+        
+        #ui-overlay {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 24px;
+            left: 24px;
             color: #ffffff;
             pointer-events: none;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(5px);
-            padding: 15px;
-            border-radius: 4px;
-            border-left: 3px solid #00ff00;
+            background: var(--ui-bg);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--brand-cyan);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            line-height: 1.6;
+            letter-spacing: 0.5px;
+            font-size: 13px;
         }
+
+        .key-hint {
+            color: var(--brand-cyan);
+            font-weight: bold;
+            display: inline-block;
+            width: 20px;
+        }
+
         #label {
             position: absolute;
-            bottom: 50px;
+            bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
-            color: #00ff00;
-            font-size: 1.4rem;
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(0,255,0,0.5);
-            background: rgba(0,0,0,0.8);
-            padding: 10px 25px;
-            border: 1px solid #333;
+            color: #ffffff;
+            font-size: 1.2rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            background: var(--ui-bg);
+            padding: 12px 30px;
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 50px;
             display: none;
             pointer-events: none;
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
         }
+
+        canvas { display: block; width: 100vw; height: 100vh; }
     </style>
 </head>
+<body>
+
+<div id="ui-overlay">
+    <div><span class="key-hint">.</span> EXPLODE VIEW</div>
+    <div><span class="key-hint">,</span> ASSEMBLE</div>
+    <div style="margin-top: 8px;"><span class="key-hint">=</span> INCREASE SCALE</div>
+    <div><span class="key-hint">-</span> DECREASE SCALE</div>
+    <div style="margin-top: 12px; opacity: 0.6; font-size: 11px;">
+        DRAG TO ROTATE • SCROLL TO ZOOM
+    </div>
+</div>
+<div id="label"></div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+    
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const label = document.getElementById('label');
+
+    // Studio Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const mainLight = new THREE.DirectionalLight(0xffffff, 2);
+    mainLight.position.set(5, 10, 7);
+    scene.add(mainLight);
+    const fillLight = new THREE.PointLight(0x00e5ff, 1);
+    fillLight.position.set(-5, 0, -5);
+    scene.add(fillLight);
+
+    let modelRoot = new THREE.Group();
+    let components = [];
+    let explodeTarget = 0;
+    let currentExplode = 0;
+    let targetScale = 1.0;
+    
+    const keys = { period: false, comma: false, equals: false, minus: false };
+
+    const loader = new GLTFLoader();
+    loader.load('90l_fire_extinguisher.glb', (gltf) => {
+        const model = gltf.scene;
+        
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        // Initial setup
+        model.position.sub(center);
+        modelRoot.add(model);
+        
+        // Target 50% of viewport height
+        const vFOV = camera.fov * Math.PI / 180;
+        const height = 2 * Math.atan(vFOV / 2) * 5; // at dist 5
+        const initialScale = (height * 0.5) / size.y;
+        targetScale = initialScale;
+        modelRoot.scale.set(initialScale, initialScale, initialScale);
+
+        model.traverse((child) => {
+            if (child.isMesh) {
+                child.userData.originalPos = child.position.clone();
+                const worldPos = new THREE.Vector3();
+                child.getWorldPosition(worldPos);
+                child.userData.explodeVec = worldPos.clone().normalize();
+                
+                // Set brand highlight material properties
+                if (child.material) {
+                    child.material.emissiveIntensity = 0;
+                    child.material.emissive.setHex(0x00e5ff);
+                }
+                components.push(child);
+            }
+        });
+
+        scene.add(modelRoot);
+        camera.position.set(0, 0.5, 5);
+        controls.update();
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === '.') keys.period = true;
+        if (e.key === ',') keys.comma = true;
+        if (e.key === '=') keys.equals = true;
+        if (e.key === '-') keys.minus = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (e.key === '.') keys.period = false;
+        if (e.key === ',') keys.comma = false;
+        if (e.key === '=') keys.equals = false;
+        if (e.key === '-') keys.minus = false;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Explosion Transition
+        if (keys.period) explodeTarget += 0.03;
+        if (keys.comma) explodeTarget -= 0.03;
+        explodeTarget = Math.max(0, Math.min(explodeTarget, 2.5));
+        currentExplode += (explodeTarget - currentExplode) * 0.1;
+
+        // Scaling Transition
+        if (keys.equals) targetScale *= 1.02;
+        if (keys.minus) targetScale *= 0.98;
+        const s = modelRoot.scale.x + (targetScale - modelRoot.scale.x) * 0.1;
+        modelRoot.scale.set(s, s, s);
+
+        components.forEach(mesh => {
+            const shift = mesh.userData.explodeVec.clone().multiplyScalar(currentExplode);
+            mesh.position.copy(mesh.userData.originalPos).add(shift);
+        });
+
+        controls.update();
+
+        // Interaction
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(components);
+
+        if (intersects.length > 0) {
+            const target = intersects[0].object;
+            label.style.display = 'block';
+            label.innerText = target.name.replace(/_/g, ' ') || "SYSTEM COMPONENT";
+            components.forEach(m => m.material.emissiveIntensity = 0);
+            target.material.emissiveIntensity = 0.5;
+        } else {
+            label.style.display = 'none';
+            components.forEach(m => m.material.emissiveIntensity = 0);
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html></head>
 <body>
 
 <div id="ui">
