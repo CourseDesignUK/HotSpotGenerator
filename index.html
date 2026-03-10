@@ -149,7 +149,8 @@
         
         let currentExplosion = 0;
         let explodeDirection = 0;
-        const explodeSpeed = 0.08;
+        const explodeSpeedPerMs = 0.005;
+        let lastTime = performance.now();
         
         let internalScene = null;
         let activeCamera = null;
@@ -170,7 +171,10 @@
             return sceneSymbol ? viewer[sceneSymbol] : null;
         };
 
-        const updateExplosion = () => {
+        const updateExplosion = (time) => {
+            const delta = time - lastTime;
+            lastTime = time;
+
             if (!internalScene) {
                 if (isAnimating) requestAnimationFrame(updateExplosion);
                 return;
@@ -180,7 +184,7 @@
 
             if (explodeDirection !== 0) {
                 const prev = currentExplosion;
-                currentExplosion += explodeDirection * explodeSpeed;
+                currentExplosion += explodeDirection * explodeSpeedPerMs * delta;
                 currentExplosion = Math.max(0, Math.min(currentExplosion, 10));
                 if (currentExplosion !== prev) needsRender = true;
             }
@@ -207,8 +211,7 @@
 
                             obj.userData.localDirection = localDir;
                         }
-                        const displacement = obj.userData.localDirection.clone().multiplyScalar(currentExplosion);
-                        obj.position.copy(obj.userData.origPos).add(displacement);
+                        obj.position.copy(obj.userData.origPos).addScaledVector(obj.userData.localDirection, currentExplosion);
                     }
                 });
 
@@ -264,6 +267,7 @@
 
             if (!isAnimating) {
                 isAnimating = true;
+                lastTime = performance.now();
                 requestAnimationFrame(updateExplosion);
             }
         });
