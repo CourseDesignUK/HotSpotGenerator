@@ -210,9 +210,9 @@
         loader.load(`./models/${filename}`, (gltf) => {
             currentModel = gltf.scene;
             
-            // Recenter geometry to origin
             const box = new THREE.Box3().setFromObject(currentModel);
             const center = box.getCenter(new THREE.Vector3());
+            
             currentModel.position.x += (currentModel.position.x - center.x);
             currentModel.position.y += (currentModel.position.y - center.y);
             currentModel.position.z += (currentModel.position.z - center.z);
@@ -226,7 +226,11 @@
                     
                     const worldPos = new THREE.Vector3();
                     child.getWorldPosition(worldPos);
-                    child.userData.explodeVec = worldPos.clone().normalize();
+                    
+                    // Constrain explosion to X and Y axes only
+                    const explodeVec = new THREE.Vector3(worldPos.x, worldPos.y, 0).normalize();
+                    child.userData.explodeVec = explodeVec;
+                    
                     components.push(child);
                 }
             });
