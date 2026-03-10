@@ -26,8 +26,8 @@
             left: 50%;
             transform: translateX(-50%);
             background: var(--glass-bg);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             padding: 10px 25px;
             border-radius: 12px;
             border: 1px solid var(--glass-border);
@@ -39,9 +39,9 @@
         }
 
         #model-selector {
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(255, 255, 255, 0.1);
             color: var(--brand-cyan);
-            border: 1px solid rgba(0, 229, 255, 0.3);
+            border: 1px solid var(--glass-border);
             padding: 5px 12px;
             border-radius: 4px;
             font-family: 'Inter', sans-serif;
@@ -50,6 +50,12 @@
             letter-spacing: 1px;
             cursor: pointer;
             outline: none;
+            backdrop-filter: blur(5px);
+        }
+
+        #model-selector option {
+            background: var(--brand-bg);
+            color: white;
         }
 
         .control-group {
@@ -114,7 +120,7 @@
     <div class="control-group">
         <label for="model-selector">UNIT:</label>
         <select id="model-selector">
-            <option value="90l_fire_extinguisher.glb">Fire Extinguisher</option>
+            <option value="90LFE2.glb">90L Fire Extinguisher</option>
             <option value="engine_part.glb">Engine Assembly</option>
             <option value="drone_chassis.glb">Drone Unit</option>
         </select>
@@ -223,7 +229,9 @@
     }
 
     modelSelector.addEventListener('change', (e) => loadModel(e.target.value));
-    loadModel(modelSelector.value);
+    
+    // Default load from /models/
+    loadModel('90LFE2.glb');
 
     window.addEventListener('keydown', (e) => {
         if (e.key === '.' || e.key === '>') keys.period = true;
