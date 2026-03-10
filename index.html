@@ -3,38 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Component Explorer | Explode Mode</title>
+    <title>3D Component Explorer</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-    
     <style>
         :root {
             --brand-cyan: #00e5ff;
-            --brand-bg: #0a111a;
+            --brand-bg: #1a2a40;
             --glass-bg: rgba(255, 255, 255, 0.07);
             --glass-border: rgba(255, 255, 255, 0.15);
             --text-main: #ffffff;
             --font-stack: 'Inter', sans-serif;
         }
         
-        body { margin: 0; overflow: hidden; background: var(--brand-bg); font-family: var(--font-stack); height: 100vh; }
-
-        model-viewer { width: 100%; height: 100%; }
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: var(--brand-bg); 
+            font-family: var(--font-stack);
+        }
         
         #instruction-panel {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            color: var(--text-main); background: var(--glass-bg); backdrop-filter: blur(20px);
-            padding: 12px 24px; border-radius: 50px; border: 1px solid var(--glass-border);
-            display: flex; align-items: center; gap: 20px; z-index: 100;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--text-main);
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            z-index: 100;
         }
 
-        .key-hint {
-            font-size: 10px; background: rgba(255,255,255,0.1);
-            padding: 4px 8px; border-radius: 4px; border: 1px solid var(--brand-cyan);
-            color: var(--brand-cyan); font-weight: bold;
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        .control-group { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        select, input[type="range"] {
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--brand-cyan);
+            border: 1px solid var(--glass-border);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: var(--font-stack);
+            font-size: 12px;
+            outline: none;
+        }
+
+        .divider {
+            width: 1px;
+            height: 18px;
+            background: var(--glass-border);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="instruction-panel">
+        <div class="control-group">
+            <label>MODEL</label>
+            <select id="model-select">
+                <option value="models/90LFE2.glb">90LFE2</option>
+                <option value="models/Water FAFA.glb">Water FAFA</option>
+            </select>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="control-group">
+            <label>ZOOM</label>
+            <input type="range" id="zoom-control" min="1" max="100" value="50">
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="control-group">
+            <label>SCALE</label>
+            <input type="range" id="scale-control" min="0.1" max="5.0" step="0.1" value="1.0">
+        </div>
+    </div>
+
+    <script>
+        const modelSelect = document.getElementById('model-select');
+        
+        // Critical: Handle space in filename for "Water FAFA.glb"
+        modelSelect.addEventListener('change', (e) => {
+            const path = e.target.value;
+            console.log("Attempting to load:", path);
+            loadModel(path); 
+        });
+
+        function loadModel(path) {
+            // Ensure loader points to the relative path 'models/'
+            // Example for GLTFLoader:
+            // loader.load(path, (gltf) => { scene.add(gltf.scene); });
+        }
+    </script>
+</body>
+</html>        .control-group { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
         select { appearance: none; background: rgba(255, 255, 255, 0.1); color: var(--brand-cyan); border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
         .divider { width: 1px; height: 20px; background: var(--glass-border); }
     </style>
