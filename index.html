@@ -20,12 +20,20 @@
             color: #ffffff;
         }
         
-        #instruction-panel {
+        #nav-container {
             position: absolute;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+            width: 100%;
+        }
+
+        #instruction-panel {
             background: var(--glass-bg);
             backdrop-filter: blur(15px);
             -webkit-backdrop-filter: blur(15px);
@@ -34,7 +42,20 @@
             border: 1px solid var(--glass-border);
             display: flex;
             gap: 20px;
-            z-index: 100;
+        }
+
+        #model-selector {
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: 1px solid var(--brand-cyan);
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            outline: none;
         }
 
         .control-group {
@@ -89,38 +110,29 @@
             opacity: 0.8;
         }
 
-        #label {
-            position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 0.9rem;
-            font-weight: 600;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            background: rgba(0,0,0,0.6);
-            padding: 8px 20px;
-            border-radius: 4px;
-            display: none;
-            pointer-events: none;
-            border-bottom: 2px solid var(--brand-cyan);
-        }
-
         canvas { display: block; width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
 
-<div id="instruction-panel">
-    <div class="control-group">
-        <span class="key">.</span>
-        <span class="key">,</span>
-        EXPLODE
-    </div>
-    <div class="control-group">
-        <span class="key">-</span>
-        <span class="key">+</span>
-        ZOOM
+<div id="nav-container">
+    <select id="model-selector">
+        <option value="90l_fire_extinguisher.glb">Fire Extinguisher</option>
+        <option value="engine_part.glb">Engine Assembly</option>
+        <option value="drone_chassis.glb">Drone Unit</option>
+    </select>
+
+    <div id="instruction-panel">
+        <div class="control-group">
+            <span class="key">&lt;</span>
+            <span class="key">&gt;</span>
+            EXPLODE
+        </div>
+        <div class="control-group">
+            <span class="key">-</span>
+            <span class="key">+</span>
+            ZOOM
+        </div>
     </div>
 </div>
 
@@ -128,8 +140,6 @@
     <h2 id="info-title">COMPONENT</h2>
     <p id="info-desc">System diagnostic: Metadata retrieval successful. Component identified in primary assembly.</p>
 </div>
-
-<div id="label"></div>
 
 <script type="importmap">
     {
@@ -161,48 +171,59 @@
 
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const label = document.getElementById('label');
     const infoPanel = document.getElementById('info-panel');
     const infoTitle = document.getElementById('info-title');
+    const modelSelector = document.getElementById('model-selector');
 
     scene.add(new THREE.AmbientLight(0xffffff, 1.5));
     const light = new THREE.DirectionalLight(0xffffff, 2.5);
     light.position.set(5, 10, 7);
     scene.add(light);
 
-    let modelRoot = new THREE.Group();
+    let currentModel = null;
     let components = [];
     let explodeTarget = 0;
     let currentExplode = 0;
     
     const keys = { period: false, comma: false, plus: false, minus: false };
-
     const loader = new GLTFLoader();
-    loader.load('90LFE2.glb', (gltf) => {
-        const model = gltf.scene;
-        const box = new THREE.Box3().setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        
-        model.position.sub(center);
-        modelRoot.add(model);
-        modelRoot.scale.set(0.3, 0.3, 0.3);
 
-        model.traverse((child) => {
-            if (child.isMesh) {
-                child.material = child.material.clone();
-                child.userData.originalPos = child.position.clone();
-                const worldPos = new THREE.Vector3();
-                child.getWorldPosition(worldPos);
-                child.userData.explodeVec = worldPos.clone().normalize();
-                components.push(child);
-            }
+    function loadModel(filename) {
+        if (currentModel) scene.remove(currentModel);
+        components = [];
+        explodeTarget = 0;
+        currentExplode = 0;
+
+        loader.load(`./models/${filename}`, (gltf) => {
+            currentModel = gltf.scene;
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const center = box.getCenter(new THREE.Vector3());
+            
+            currentModel.position.sub(center);
+            currentModel.scale.set(0.3, 0.3, 0.3);
+
+            currentModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = child.material.clone();
+                    child.userData.originalPos = child.position.clone();
+                    const worldPos = new THREE.Vector3();
+                    child.getWorldPosition(worldPos);
+                    child.userData.explodeVec = worldPos.clone().normalize();
+                    components.push(child);
+                }
+            });
+            scene.add(currentModel);
         });
-        scene.add(modelRoot);
-    });
+    }
+
+    modelSelector.addEventListener('change', (e) => loadModel(e.target.value));
+    
+    // Initial Load (assumes the file is in /models/)
+    loadModel(modelSelector.value);
 
     window.addEventListener('keydown', (e) => {
-        if (e.key === '.') keys.period = true;
-        if (e.key === ',') keys.comma = true;
+        if (e.key === '.') keys.period = true; // Use . for >
+        if (e.key === ',') keys.comma = true;  // Use , for <
         if (e.key === '=' || e.key === '+') keys.plus = true;
         if (e.key === '-') keys.minus = true;
     });
@@ -244,9 +265,6 @@
             const target = intersects[0].object;
             const name = target.name.replace(/_/g, ' ') || "SYSTEM COMPONENT";
             
-            label.style.display = 'block';
-            label.innerText = name;
-            
             infoPanel.style.display = 'block';
             infoTitle.innerText = name;
             
@@ -254,7 +272,6 @@
             target.material.emissive.setHex(0x00e5ff);
             target.material.emissiveIntensity = 0.6;
         } else {
-            label.style.display = 'none';
             infoPanel.style.display = 'none';
             components.forEach(m => m.material.emissiveIntensity = 0);
         }
