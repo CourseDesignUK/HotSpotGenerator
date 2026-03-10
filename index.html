@@ -148,9 +148,11 @@
         const tooltip = document.querySelector('#tooltip');
         
         let currentExplosion = 0;
-        let explodeDirection = 0;
-        const explodeSpeedPerMs = 0.005;
-        let lastTime = performance.now();
+        let targetDirection = 0;
+        let smoothedVelocity = 0;
+        const maxExplosion = 10;
+        const acceleration = 0.15;
+        const maxSpeed = 0.2;
         
         let internalScene = null;
         let activeCamera = null;
@@ -162,7 +164,7 @@
         modelSelect.addEventListener('change', (e) => {
             viewer.src = e.target.value;
             currentExplosion = 0;
-            explodeDirection = 0;
+            smoothedVelocity = 0;
         });
 
         const getInternalScene = () => {
@@ -171,54 +173,61 @@
             return sceneSymbol ? viewer[sceneSymbol] : null;
         };
 
-        const updateExplosion = (time) => {
-            const delta = time - lastTime;
-            lastTime = time;
-
+        const updateExplosion = () => {
             if (!internalScene) {
                 if (isAnimating) requestAnimationFrame(updateExplosion);
                 return;
             }
 
-            let needsRender = false;
+            smoothedVelocity += (targetDirection * maxSpeed - smoothedVelocity) * acceleration;
 
-            if (explodeDirection !== 0) {
+            if (Math.abs(smoothedVelocity) > 0.001 || currentExplosion > 0) {
                 const prev = currentExplosion;
-                currentExplosion += explodeDirection * explodeSpeedPerMs * delta;
-                currentExplosion = Math.max(0, Math.min(currentExplosion, 10));
-                if (currentExplosion !== prev) needsRender = true;
-            }
+                currentExplosion += smoothedVelocity;
+                currentExplosion = Math.max(0, Math.min(currentExplosion, maxExplosion));
 
-            if (needsRender) {
-                internalScene.traverse((obj) => {
-                    if (obj.isMesh) {
-                        if (!obj.userData.origPos) {
-                            obj.userData.origPos = obj.position.clone();
-                            
-                            obj.geometry.computeBoundingBox();
-                            const center = new THREE.Vector3();
-                            obj.geometry.boundingBox.getCenter(center);
-                            center.applyMatrix4(obj.matrixWorld);
-                            
-                            const worldDir = center.normalize();
-                            const localDir = worldDir.clone();
+                if (currentExplosion < 0.005) {
+                    currentExplosion = 0;
+                    if (targetDirection <= 0) smoothedVelocity = 0;
+                }
 
-                            if (obj.parent) {
-                                const parentQuat = new THREE.Quaternion();
-                                obj.parent.getWorldQuaternion(parentQuat);
-                                localDir.applyQuaternion(parentQuat.invert());
+                if (currentExplosion !== prev || currentExplosion === 0) {
+                    internalScene.traverse((obj) => {
+                        if (obj.isMesh) {
+                            if (!obj.userData.origPos) {
+                                obj.userData.origPos = obj.position.clone();
+                                
+                                obj.geometry.computeBoundingBox();
+                                const center = new THREE.Vector3();
+                                obj.geometry.boundingBox.getCenter(center);
+                                center.applyMatrix4(obj.matrixWorld);
+                                
+                                const worldDir = center.normalize();
+                                const localDir = worldDir.clone();
+
+                                if (obj.parent) {
+                                    const parentQuat = new THREE.Quaternion();
+                                    obj.parent.getWorldQuaternion(parentQuat);
+                                    localDir.applyQuaternion(parentQuat.invert());
+                                }
+
+                                obj.userData.localDirection = localDir;
                             }
-
-                            obj.userData.localDirection = localDir;
+                            
+                            if (currentExplosion === 0) {
+                                obj.position.copy(obj.userData.origPos);
+                            } else {
+                                obj.position.copy(obj.userData.origPos).addScaledVector(obj.userData.localDirection, currentExplosion);
+                            }
+                            obj.updateMatrix();
                         }
-                        obj.position.copy(obj.userData.origPos).addScaledVector(obj.userData.localDirection, currentExplosion);
-                    }
-                });
+                    });
 
-                if (viewer.queueRender) {
-                    viewer.queueRender();
-                } else if (viewer.requestUpdate) {
-                    viewer.requestUpdate();
+                    if (viewer.requestUpdate) {
+                        viewer.requestUpdate();
+                    } else if (viewer.queueRender) {
+                        viewer.queueRender();
+                    }
                 }
             }
 
@@ -226,13 +235,14 @@
         };
 
         window.addEventListener('keydown', (e) => {
-            if (e.key === '.') explodeDirection = 1;
-            if (e.key === ',') explodeDirection = -1;
+            if (e.repeat) return; 
+            if (e.key === '.') targetDirection = 1;
+            if (e.key === ',') targetDirection = -1;
         });
 
         window.addEventListener('keyup', (e) => {
-            if (e.key === '.' && explodeDirection === 1) explodeDirection = 0;
-            if (e.key === ',' && explodeDirection === -1) explodeDirection = 0;
+            if (e.key === '.' && targetDirection === 1) targetDirection = 0;
+            if (e.key === ',' && targetDirection === -1) targetDirection = 0;
         });
 
         viewer.addEventListener('mousemove', (event) => {
@@ -267,7 +277,6 @@
 
             if (!isAnimating) {
                 isAnimating = true;
-                lastTime = performance.now();
                 requestAnimationFrame(updateExplosion);
             }
         });
