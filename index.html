@@ -7,115 +7,28 @@
     <style>
         :root {
             --brand-cyan: #00e5ff;
-            --brand-bg: #0a111a;
+            --brand-light-blue: #1a2a40; /* Lighter background variable */
             --glass-bg: rgba(255, 255, 255, 0.05);
-            --glass-border: rgba(255, 255, 255, 0.15);
-            --panel-blur: blur(20px);
+            --glass-border: rgba(255, 255, 255, 0.2);
         }
-
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background: var(--brand-bg); 
-            font-family: 'Inter', system-ui, sans-serif; 
-            color: white;
-        }
-
-        /* Top Instruction Panel */
+        
+        body { margin: 0; overflow: hidden; background: var(--brand-light-blue); font-family: 'Inter', sans-serif; }
+        
         #instruction-panel {
             position: absolute;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
+            color: #ffffff;
+            pointer-events: none;
             background: var(--glass-bg);
-            backdrop-filter: var(--panel-blur);
-            -webkit-backdrop-filter: var(--panel-blur);
-            padding: 12px 30px;
-            border-radius: 50px;
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            padding: 15px 40px;
+            border-radius: 12px;
             border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
             display: flex;
-            align-items: center;
-            gap: 20px;
+            gap: 30px;
             z-index: 100;
         }
-
-        /* Range/Slider Styling */
-        .slider-container {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--brand-cyan);
-        }
-
-        input[type=range] {
-            cursor: pointer;
-            width: 150px;
-        }
-
-        /* Right Information Panel */
-        #info-panel {
-            position: absolute;
-            right: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 280px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--panel-blur);
-            -webkit-backdrop-filter: var(--panel-blur);
-            padding: 25px;
-            border-radius: 16px;
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            z-index: 100;
-            transition: opacity 0.3s ease;
-        }
-
-        #info-panel h2 {
-            margin: 0 0 10px 0;
-            font-size: 1.2rem;
-            color: var(--brand-cyan);
-            border-bottom: 1px solid var(--glass-border);
-            padding-bottom: 10px;
-        }
-
-        #info-panel p {
-            margin: 0;
-            font-size: 0.9rem;
-            line-height: 1.6;
-            color: rgba(255,255,255,0.8);
-        }
-
-        .hidden {
-            opacity: 0;
-        }
-    </style>
-</head>
-<body>
-
-    <div id="instruction-panel">
-        <div class="slider-container">
-            <span>&lt; Assemble</span>
-            <input type="range" id="explode-slider" min="0" max="100" value="0">
-            <span>Explode &gt;</span>
-        </div>
-    </div>
-
-    <div id="info-panel" class="hidden">
-        <h2 id="item-title">Component Name</h2>
-        <p id="item-description">Hover over a component to view its technical specifications and functional description.</p>
-    </div>
-
-    <script>
-        // Implementation logic for mouseover detection and panel updates:
-        // 1. Raycaster detects intersection with 3D objects.
-        // 2. On intersection: 
-        //    - Remove 'hidden' class from #info-panel.
-        //    - Update innerHTML of #item-title and #item-description.
-        // 3. On null intersection:
-        //    - Add 'hidden' class to #info-panel.
-    </script>
-</body>
-</html>
