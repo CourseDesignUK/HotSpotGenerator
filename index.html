@@ -120,6 +120,8 @@
     </div>
 
     <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
         const viewer = document.querySelector('#main-viewer');
         const modelSelect = document.querySelector('#model-select');
         const progressBar = document.querySelector('#progress-bar');
@@ -127,6 +129,8 @@
         let targetExplosion = 0;
         let currentExplosion = 0;
         const lerpFactor = 0.1;
+        let internalScene = null;
+        let isAnimating = false;
 
         modelSelect.addEventListener('change', (e) => {
             viewer.src = e.target.value;
@@ -134,24 +138,35 @@
             currentExplosion = 0;
         });
 
+        const getInternalScene = () => {
+            const symbols = Object.getOwnPropertySymbols(viewer);
+            const sceneSymbol = symbols.find(s => s.description === 'scene');
+            return sceneSymbol ? viewer[sceneSymbol] : null;
+        };
+
         const updateExplosion = () => {
-            const scene = viewer.toObject3D();
-            if (!scene) return;
+            if (!internalScene) return;
 
             currentExplosion += (targetExplosion - currentExplosion) * lerpFactor;
 
-            scene.traverse((obj) => {
+            internalScene.traverse((obj) => {
                 if (obj.isMesh) {
                     if (!obj.userData.origPos) {
                         obj.userData.origPos = obj.position.clone();
-                        obj.userData.direction = obj.position.clone().normalize();
+                        
+                        obj.geometry.computeBoundingBox();
+                        const center = new THREE.Vector3();
+                        obj.geometry.boundingBox.getCenter(center);
+                        
+                        center.applyMatrix4(obj.matrixWorld);
+                        obj.userData.direction = center.normalize();
                     }
                     const displacement = obj.userData.direction.clone().multiplyScalar(currentExplosion);
                     obj.position.copy(obj.userData.origPos).add(displacement);
                 }
             });
 
-            requestAnimationFrame(updateExplosion);
+            if (isAnimating) requestAnimationFrame(updateExplosion);
         };
 
         window.addEventListener('keydown', (e) => {
@@ -160,7 +175,18 @@
         });
 
         viewer.addEventListener('load', () => {
-            requestAnimationFrame(updateExplosion);
+            internalScene = getInternalScene();
+            
+            if (internalScene) {
+                internalScene.traverse((obj) => {
+                    if (obj.isMesh) obj.userData = {}; 
+                });
+            }
+
+            if (!isAnimating) {
+                isAnimating = true;
+                requestAnimationFrame(updateExplosion);
+            }
         });
 
         viewer.addEventListener('progress', (e) => {
