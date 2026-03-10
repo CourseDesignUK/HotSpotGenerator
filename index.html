@@ -66,6 +66,140 @@
             color: var(--brand-cyan);
         }
 
+        select {
+            appearance: none;
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--brand-cyan);
+            border: 1px solid var(--glass-border);
+            padding: 4px 8px;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .divider { width: 1px; height: 18px; background: var(--glass-border); }
+
+        #progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: var(--brand-cyan);
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+
+    <model-viewer 
+        id="main-viewer"
+        src="models/90LFE2.glb" 
+        camera-controls 
+        min-camera-orbit="auto auto 0.25m"
+        shadow-intensity="1" 
+        environment-image="neutral">
+        <div id="progress-bar" slot="progress-bar"></div>
+    </model-viewer>
+
+    <div id="instruction-panel">
+        <div class="control-group">
+            <label>MODEL</label>
+            <select id="model-select">
+                <option value="models/90LFE2.glb">90L Component</option>
+                <option value="models/Water FAFA.glb">Water System</option>
+            </select>
+        </div>
+        <div class="divider"></div>
+        <div class="control-group">
+            <span class="key-hint">.</span> EXPLODE
+            <span class="key-hint">,</span> ASSEMBLE
+        </div>
+    </div>
+
+    <script type="module">
+        const viewer = document.querySelector('#main-viewer');
+        const modelSelect = document.querySelector('#model-select');
+        const progressBar = document.querySelector('#progress-bar');
+        
+        let targetExplosion = 0;
+        let currentExplosion = 0;
+        const lerpFactor = 0.1;
+
+        modelSelect.addEventListener('change', (e) => {
+            viewer.src = e.target.value;
+            targetExplosion = 0;
+            currentExplosion = 0;
+        });
+
+        const updateExplosion = () => {
+            const scene = viewer.toObject3D();
+            if (!scene) return;
+
+            // Smooth interpolation
+            currentExplosion += (targetExplosion - currentExplosion) * lerpFactor;
+
+            scene.traverse((obj) => {
+                if (obj.isMesh) {
+                    if (!obj.userData.origPos) {
+                        obj.userData.origPos = obj.position.clone();
+                        // Normalize direction from center for component separation
+                        obj.userData.direction = obj.position.clone().normalize();
+                    }
+                    const displacement = obj.userData.direction.clone().multiplyScalar(currentExplosion);
+                    obj.position.copy(obj.userData.origPos).add(displacement);
+                }
+            });
+
+            requestAnimationFrame(updateExplosion);
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '.') targetExplosion = Math.min(targetExplosion + 0.5, 10);
+            if (e.key === ',') targetExplosion = Math.max(targetExplosion - 0.5, 0);
+        });
+
+        viewer.addEventListener('load', () => {
+            requestAnimationFrame(updateExplosion);
+        });
+
+        viewer.addEventListener('progress', (e) => {
+            progressBar.style.width = `${e.detail.totalProgress * 100}%`;
+        });
+    </script>
+</body>
+</html>            color: var(--text-main);
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+            white-space: nowrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .key-hint {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--brand-cyan);
+        }
+
         select, input[type="range"] {
             appearance: none;
             background: rgba(0, 0, 0, 0.3);
