@@ -3,117 +3,99 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ATTP | Wildfire AR Module</title>
+    <title>ATTP | Persistent Wildfire</title>
     
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
+    <script>
+        // Custom Component: Lock to World
+        AFRAME.registerComponent('lock-to-world', {
+            init: function () {
+                const el = this.el;
+                const marker = document.querySelector('#marker-hiro');
+                const scene = this.el.sceneEl;
+
+                marker.addEventListener('markerFound', () => {
+                    // Update UI status
+                    document.getElementById('tracking-status').innerText = "LOCK ACQUIRED";
+                    document.getElementById('status-dot').style.background = "#00ff00";
+                    
+                    // Show the model
+                    el.setAttribute('visible', 'true');
+                });
+
+                marker.addEventListener('markerLost', () => {
+                    // Get current world position/rotation before marker is lost
+                    const worldPos = new THREE.Vector3();
+                    const worldRot = new THREE.Quaternion();
+                    const worldScale = new THREE.Vector3();
+                    
+                    el.object3D.getWorldPosition(worldPos);
+                    el.object3D.getWorldQuaternion(worldRot);
+                    el.object3D.getWorldScale(worldScale);
+
+                    // Re-parent to scene so it doesn't disappear with the marker
+                    scene.object3D.add(el.object3D);
+
+                    // Re-apply the world coordinates
+                    el.object3D.position.copy(worldPos);
+                    el.object3D.quaternion.copy(worldRot);
+                    el.object3D.scale.copy(worldScale);
+
+                    document.getElementById('tracking-status').innerText = "MARKER LOST - INTERPOSITION ACTIVE";
+                    document.getElementById('status-dot').style.background = "#ffae00";
+                });
+            }
+        });
+    </script>
+
     <style>
-        :root {
-            --attp-blue: #00d2ff;
-            --attp-warning: #ff3e3e;
-            --dark-glass: rgba(10, 14, 20, 0.9);
-            --ui-border: 1px solid rgba(0, 210, 255, 0.3);
+        :root { --attp-blue: #00d2ff; --dark-glass: rgba(10, 14, 20, 0.9); }
+        body { margin: 0; overflow: hidden; font-family: 'Consolas', monospace; }
+
+        .hud-overlay {
+            position: absolute; bottom: 40px; left: 20px;
+            background: var(--dark-glass); border-left: 4px solid var(--attp-blue);
+            padding: 15px; z-index: 100; border-radius: 0 4px 4px 0;
+            width: 280px; backdrop-filter: blur(8px);
         }
 
-        body { margin: 0; overflow: hidden; font-family: 'Consolas', monospace; color: white; }
-
-        /* Tactical HUD Header */
-        .hud-top {
-            position: absolute; top: 0; left: 0; width: 100%; height: 50px;
-            background: var(--dark-glass); border-bottom: 2px solid var(--attp-blue);
-            display: flex; align-items: center; padding: 0 20px; z-index: 100;
-            backdrop-filter: blur(10px); text-transform: uppercase; letter-spacing: 2px;
+        #status-dot {
+            display: inline-block; width: 10px; height: 10px;
+            background: #ff3e3e; border-radius: 50%; margin-right: 10px;
         }
 
-        /* Sidebar Telemetry */
-        .telemetry-panel {
-            position: absolute; top: 70px; right: 20px; width: 180px;
-            background: var(--dark-glass); border: var(--ui-border);
-            padding: 15px; z-index: 100; border-radius: 4px;
-        }
-
-        .data-row { font-size: 11px; margin-bottom: 8px; color: #aaa; }
-        .data-val { display: block; font-size: 14px; color: var(--attp-blue); font-weight: bold; }
-
-        /* Warning Banner */
-        .alert-system {
-            position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
-            padding: 10px 30px; background: rgba(255, 62, 62, 0.2);
-            border: 1px solid var(--attp-warning); color: var(--attp-warning);
-            text-transform: uppercase; font-weight: bold; border-radius: 20px;
-            animation: pulse 2s infinite; display: none;
-        }
-
-        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
-
-        /* Scanning Reticle Customization */
-        .reticle-box {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 280px; height: 280px; border: 1px solid rgba(0, 210, 255, 0.2);
-            pointer-events: none; z-index: 50;
-        }
+        .label { font-size: 10px; color: #888; text-transform: uppercase; }
+        .value { font-size: 14px; color: white; display: block; margin-top: 4px; }
     </style>
 </head>
 
 <body>
-    <div class="hud-top">ATTP // WILDFIRE_SIM_V4.2</div>
-
-    <div class="telemetry-panel">
-        <div class="data-row">CORE TEMP<span class="data-val">1,240°C</span></div>
-        <div class="data-row">WIND VELOCITY<span class="data-val">24 KM/H NW</span></div>
-        <div class="data-row">SPREAD RATE<span class="data-val">1.2 M/MIN</span></div>
-        <div class="data-row">FUEL LOAD<span class="data-val">DRY VEG [HIGH]</span></div>
+    <div class="hud-overlay">
+        <div class="label"><span id="status-dot"></span>System Status</div>
+        <div id="tracking-status" class="value">SCANNING FOR HIRO MARKER...</div>
     </div>
 
-    <div id="fire-alert" class="alert-system">Active Combustion Detected</div>
-    <div class="reticle-box"></div>
-
-    <a-scene 
-        embedded 
-        vr-mode-ui="enabled: false"
-        arjs="sourceType: webcam; debugUIEnabled: false;">
+    <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false;">
         
         <a-assets>
             <a-asset-item id="wildfire" src="https://raw.githack.com/KhronosGroup/glTF-Sample-Models/master/2.0/Lantern/glTF-Binary/Lantern.glb"></a-asset-item>
         </a-assets>
 
         <a-marker preset="hiro" id="marker-hiro">
-            
-            <a-entity 
-                gltf-model="#wildfire" 
-                scale="0.1 0.1 0.1" 
-                position="0 0 0"
-                animation="property: scale; from: 0.08 0.08 0.08; to: 0.12 0.12 0.12; dur: 2000; dir: alternate; loop: true">
-            </a-entity>
-
-            <a-ring 
-                rotation="-90 0 0" 
-                radius-inner="1" 
-                radius-outer="1.5" 
-                color="#ff3e3e" 
-                opacity="0.4"
-                animation="property: material.opacity; from: 0.1; to: 0.5; dir: alternate; loop: true; dur: 1000">
-            </a-ring>
-
-            <a-light type="point" color="#ff3e3e" intensity="2" position="0 2 0"></a-light>
+            <a-entity id="anchor"></a-entity>
         </a-marker>
+
+        <a-entity 
+            id="wildfire-model"
+            gltf-model="#wildfire" 
+            scale="0.1 0.1 0.1" 
+            visible="false"
+            lock-to-world>
+        </a-entity>
 
         <a-entity camera></a-entity>
     </a-scene>
-
-    <script>
-        // UI Logic to handle detection alerts
-        const marker = document.querySelector('#marker-hiro');
-        const alertBox = document.querySelector('#fire-alert');
-
-        marker.addEventListener('markerFound', () => {
-            alertBox.style.display = 'block';
-        });
-
-        marker.addEventListener('markerLost', () => {
-            alertBox.style.display = 'none';
-        });
-    </script>
 </body>
 </html>
