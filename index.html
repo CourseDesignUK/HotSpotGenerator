@@ -3,287 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Component Explorer</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <title>Voice Assistant Interface</title>
     <style>
         :root {
-            --brand-cyan: #00e5ff;
-            --brand-bg: #1a2a40;
-            --glass-bg: rgba(255, 255, 255, 0.07);
-            --glass-border: rgba(255, 255, 255, 0.15);
-            --text-main: #ffffff;
-            --font-stack: 'Inter', sans-serif;
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --accent-color: #38bdf8;
         }
-        
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background: var(--brand-bg); 
-            font-family: var(--font-stack);
-        }
-
-        model-viewer {
-            width: 100vw;
+        body {
+            font-family: sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             height: 100vh;
-            background-color: var(--brand-bg);
-            outline: none;
+            margin: 0;
         }
-        
-        #instruction-panel {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: var(--text-main);
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            padding: 12px 24px;
-            border-radius: 50px;
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            z-index: 100;
-            white-space: nowrap;
+        #app-container {
+            width: 90%;
+            max-width: 500px;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            text-align: center;
         }
-
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        #status {
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            color: var(--accent-color);
         }
-
-        .key-hint {
-            background: rgba(255,255,255,0.2);
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: var(--brand-cyan);
+        #transcript {
+            min-height: 100px;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(0,0,0,0.2);
+            border-radius: 0.5rem;
+            text-align: left;
+            font-size: 1rem;
         }
-
-        select {
-            appearance: none;
-            background: rgba(0, 0, 0, 0.3);
-            color: var(--brand-cyan);
-            border: 1px solid var(--glass-border);
-            padding: 4px 12px;
-            border-radius: 4px;
-            outline: none;
+        button {
+            background-color: var(--accent-color);
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 9999px;
+            color: var(--bg-color);
+            font-weight: bold;
             cursor: pointer;
-            font-family: var(--font-stack);
+            transition: opacity 0.2s;
         }
-
-        .divider { width: 1px; height: 18px; background: var(--glass-border); }
-
-        #progress-bar {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            height: 3px;
-            background: var(--brand-cyan);
-            width: 0%;
-            transition: width 0.3s;
-        }
-
-        #tooltip {
-            position: absolute;
-            background: rgba(10, 15, 30, 0.9);
-            color: var(--brand-cyan);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            pointer-events: none;
-            display: none;
-            z-index: 200;
-            border: 1px solid var(--glass-border);
-            text-transform: uppercase;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
     </style>
 </head>
 <body>
 
-    <model-viewer 
-        id="main-viewer"
-        src="models/90LFE2.glb" 
-        camera-controls 
-        min-camera-orbit="auto auto 0.25m"
-        max-camera-orbit="auto auto 100m"
-        shadow-intensity="1" 
-        environment-image="neutral">
-        <div id="progress-bar" slot="progress-bar"></div>
-    </model-viewer>
+<div id-="app-container">
+    <div id="status">System Ready</div>
+    <div id="transcript">Voice input will appear here...</div>
+    <button id="mic-btn">Start Listening</button>
+</div>
 
-    <div id="instruction-panel">
-        <div class="control-group">
-            <label>MODEL</label>
-            <select id="model-select">
-                <option value="models/90LFE2.glb">90L Component</option>
-                <option value="models/Water FAFA.glb">Water System</option>
-            </select>
-        </div>
-        <div class="divider"></div>
-        <div class="control-group">
-            <span class="key-hint">HOLD .</span> EXPLODE
-            <span class="key-hint">HOLD ,</span> ASSEMBLE
-        </div>
-    </div>
+<script>
+    const micBtn = document.getElementById('mic-btn');
+    const transcriptDiv = document.getElementById('transcript');
+    const statusDiv = document.getElementById('status');
 
-    <div id="tooltip"></div>
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+        statusDiv.textContent = "Speech Recognition not supported in this browser.";
+        micBtn.disabled = true;
+    } else {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
 
-    <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-
-        const viewer = document.querySelector('#main-viewer');
-        const modelSelect = document.querySelector('#model-select');
-        const progressBar = document.querySelector('#progress-bar');
-        const tooltip = document.querySelector('#tooltip');
-        
-        let currentExplosion = 0;
-        let targetDirection = 0;
-        let smoothedVelocity = 0;
-        const maxExplosion = 10;
-        const acceleration = 0.15;
-        const maxSpeed = 0.2;
-        
-        let internalScene = null;
-        let activeCamera = null;
-        let isAnimating = false;
-
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-
-        modelSelect.addEventListener('change', (e) => {
-            viewer.src = e.target.value;
-            currentExplosion = 0;
-            smoothedVelocity = 0;
-        });
-
-        const getInternalScene = () => {
-            const symbols = Object.getOwnPropertySymbols(viewer);
-            const sceneSymbol = symbols.find(s => s.description === 'scene');
-            return sceneSymbol ? viewer[sceneSymbol] : null;
+        recognition.onstart = () => {
+            statusDiv.textContent = "Listening...";
+            micBtn.textContent = "Stop";
         };
 
-        const updateExplosion = () => {
-            if (!internalScene) {
-                if (isAnimating) requestAnimationFrame(updateExplosion);
-                return;
-            }
-
-            smoothedVelocity += (targetDirection * maxSpeed - smoothedVelocity) * acceleration;
-
-            if (Math.abs(smoothedVelocity) > 0.001 || currentExplosion > 0) {
-                const prev = currentExplosion;
-                currentExplosion += smoothedVelocity;
-                currentExplosion = Math.max(0, Math.min(currentExplosion, maxExplosion));
-
-                if (currentExplosion < 0.005) {
-                    currentExplosion = 0;
-                    if (targetDirection <= 0) smoothedVelocity = 0;
-                }
-
-                if (currentExplosion !== prev || currentExplosion === 0) {
-                    internalScene.traverse((obj) => {
-                        if (obj.isMesh) {
-                            if (!obj.userData.origPos) {
-                                obj.userData.origPos = obj.position.clone();
-                                
-                                obj.geometry.computeBoundingBox();
-                                const center = new THREE.Vector3();
-                                obj.geometry.boundingBox.getCenter(center);
-                                center.applyMatrix4(obj.matrixWorld);
-                                
-                                const worldDir = center.normalize();
-                                const localDir = worldDir.clone();
-
-                                if (obj.parent) {
-                                    const parentQuat = new THREE.Quaternion();
-                                    obj.parent.getWorldQuaternion(parentQuat);
-                                    localDir.applyQuaternion(parentQuat.invert());
-                                }
-
-                                obj.userData.localDirection = localDir;
-                            }
-                            
-                            if (currentExplosion === 0) {
-                                obj.position.copy(obj.userData.origPos);
-                            } else {
-                                obj.position.copy(obj.userData.origPos).addScaledVector(obj.userData.localDirection, currentExplosion);
-                            }
-                            obj.updateMatrix();
-                        }
-                    });
-
-                    if (viewer.requestUpdate) {
-                        viewer.requestUpdate();
-                    } else if (viewer.queueRender) {
-                        viewer.queueRender();
-                    }
-                }
-            }
-
-            if (isAnimating) requestAnimationFrame(updateExplosion);
+        recognition.onresult = (event) => {
+            const text = event.results[0][0].transcript;
+            transcriptDiv.textContent = text;
+            processCommand(text.toLowerCase());
         };
 
-        window.addEventListener('keydown', (e) => {
-            if (e.repeat) return; 
-            if (e.key === '.') targetDirection = 1;
-            if (e.key === ',') targetDirection = -1;
+        recognition.onend = () => {
+            statusDiv.textContent = "System Ready";
+            micBtn.textContent = "Start Listening";
+        };
+
+        micBtn.addEventListener('click', () => {
+            recognition.start();
         });
+    }
 
-        window.addEventListener('keyup', (e) => {
-            if (e.key === '.' && targetDirection === 1) targetDirection = 0;
-            if (e.key === ',' && targetDirection === -1) targetDirection = 0;
-        });
+    function processCommand(command) {
+        const msg = new SpeechSynthesisUtterance();
+        
+        if (command.includes('time')) {
+            const time = new Date().toLocaleTimeString();
+            msg.text = `The time is ${time}`;
+        } else if (command.includes('date')) {
+            const date = new Date().toDateString();
+            msg.text = `Today is ${date}`;
+        } else if (command.includes('hello')) {
+            msg.text = "System online. Awaiting instruction.";
+        } else {
+            msg.text = "Command recognized, but no logic assigned.";
+        }
 
-        viewer.addEventListener('mousemove', (event) => {
-            if (!internalScene || !activeCamera) return;
+        window.speechSynthesis.speak(msg);
+    }
+</script>
 
-            const rect = viewer.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, activeCamera);
-            const intersects = raycaster.intersectObjects(internalScene.children, true);
-
-            const hit = intersects.find(i => i.object.isMesh);
-            if (hit) {
-                tooltip.style.display = 'block';
-                tooltip.style.left = `${event.clientX + 15}px`;
-                tooltip.style.top = `${event.clientY + 15}px`;
-                tooltip.textContent = hit.object.name || hit.object.uuid.slice(0, 8);
-            } else {
-                tooltip.style.display = 'none';
-            }
-        });
-
-        viewer.addEventListener('load', () => {
-            internalScene = getInternalScene();
-            if (internalScene) {
-                activeCamera = internalScene.camera;
-                internalScene.traverse((obj) => {
-                    if (obj.isMesh) obj.userData = {}; 
-                });
-            }
-
-            if (!isAnimating) {
-                isAnimating = true;
-                requestAnimationFrame(updateExplosion);
-            }
-        });
-
-        viewer.addEventListener('progress', (e) => {
-            progressBar.style.width = `${e.detail.totalProgress * 100}%`;
-        });
-    </script>
 </body>
 </html>
