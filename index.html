@@ -3,313 +3,215 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Assistant - Wake Word Enabled</title>
+    <title>Jarvis Assistant v1.0</title>
     <style>
         :root {
-            --bg-color: #0a0a0c;
-            --card-bg: #16161a;
-            --text-primary: #e2e8f0;
-            --accent-active: #22c55e;
-            --accent-standby: #3b82f6;
-            --accent-listening: #eab308;
+            --bg: #050505;
+            --panel: #111111;
+            --accent-standby: #0070f3;
+            --accent-active: #00ff88;
+            --accent-listen: #f5a623;
+            --text-main: #ffffff;
+            --text-dim: #888888;
         }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-primary);
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
+            overflow: hidden;
         }
-        #console {
+
+        #assistant-card {
             width: 400px;
-            background: var(--card-bg);
-            padding: 2rem;
-            border-radius: 12px;
-            border: 1px solid #2d2d35;
+            background: var(--panel);
+            padding: 2.5rem;
+            border-radius: 20px;
+            border: 1px solid #222;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
             text-align: center;
         }
-        #status-indicator {
-            width: 12px;
-            height: 12px;
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 2rem;
+        }
+
+        #status-orb {
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
             background: var(--accent-standby);
+            box-shadow: 0 0 15px var(--accent-standby);
+            transition: all 0.3s ease;
         }
-        .status-text {
-            font-size: 0.75rem;
+
+        #status-text {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #94a3b8;
+            color: var(--text-dim);
         }
-        #output {
-            margin-top: 1.5rem;
-            padding: 1rem;
+
+        #display-log {
             background: #000;
-            border-radius: 6px;
-            min-height: 60px;
-            font-family: monospace;
+            padding: 1.5rem;
+            border-radius: 12px;
+            min-height: 80px;
+            font-family: 'Consolas', monospace;
             font-size: 0.9rem;
-            color: #10b981;
+            color: var(--accent-active);
             text-align: left;
+            border: 1px solid #111;
+            overflow-y: auto;
+            max-height: 150px;
         }
-        .instruction {
-            font-size: 0.8rem;
-            margin-top: 1rem;
-            color: #64748b;
+
+        .history-tag {
+            display: block;
+            font-size: 0.65rem;
+            color: #444;
+            margin-top: 10px;
+            border-top: 1px solid #111;
+            padding-top: 5px;
         }
     </style>
 </head>
 <body>
 
-<div id="console">
-    <div>
-        <span id="status-indicator"></span>
-        <span class="status-text" id="status-label">Standby (Say "Jarvis")</span>
+<div id="assistant-card">
+    <div class="status-container">
+        <div id="status-orb"></div>
+        <span id="status-text">System Standby</span>
     </div>
-    <div id="output">_</div>
-    <p class="instruction">Listening for wake word...</p>
+    
+    <div id="display-log">Initialize...</div>
+    
+    <div class="history-tag">Wake Word: "Jarvis"</div>
 </div>
 
 <script>
-    const statusInd = document.getElementById('status-indicator');
-    const statusLabel = document.getElementById('status-label');
-    const outputDiv = document.getElementById('output');
-    
-    const WAKE_WORD = 'jarvis';
-    let isCommandMode = false;
+    const statusOrb = document.getElementById('status-orb');
+    const statusText = document.getElementById('status-text');
+    const displayLog = document.getElementById('display-log');
+
+    const WAKE_WORD = "jarvis";
+    let isListeningForCommand = false;
+    let silenceTimer;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
 
-    if (!SpeechRecognition) {
-        statusLabel.textContent = "API Not Supported";
-    } else {
-        const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+        updateUI('standby');
+        displayLog.textContent = "Awaiting wake word...";
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
         
-        // Configuration for "Always Listening" feel
-        recognition.continuous = true;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
-
-        recognition.onstart = () => {
-            updateUI('standby');
-        };
-
-        recognition.onresult = (event) => {
-            const lastIndex = event.results.length - 1;
-            const transcript = event.results[lastIndex][0].transcript.trim().toLowerCase();
-            
-            if (!isCommandMode) {
-                if (transcript.includes(WAKE_WORD)) {
-                    activateCommandMode();
-                }
-            } else {
-                handleCommand(transcript);
+        if (!isListeningForCommand) {
+            if (transcript.includes(WAKE_WORD)) {
+                activateCommandMode();
             }
-        };
+        } else {
+            clearTimeout(silenceTimer);
+            handleInput(transcript);
+        }
+    };
 
-        recognition.onend = () => {
-            // Restart immediately to maintain "Always Listening"
-            recognition.start();
-        };
+    recognition.onerror = () => {
+        setTimeout(() => recognition.start(), 1000);
+    };
 
-        recognition.onerror = (event) => {
-            console.error("Recognition Error: ", event.error);
-            if (event.error === 'not-allowed') {
-                statusLabel.textContent = "Mic Access Denied";
-            }
-        };
-
-        // Start the loop
+    recognition.onend = () => {
         recognition.start();
-    }
+    };
 
     function updateUI(state) {
         if (state === 'standby') {
-            statusInd.style.background = 'var(--accent-standby)';
-            statusLabel.textContent = 'Standby (Say "Jarvis")';
-        } else if (state === 'active') {
-            statusInd.style.background = 'var(--accent-listening)';
-            statusLabel.textContent = 'Listening for Command...';
+            statusOrb.style.background = 'var(--accent-standby)';
+            statusOrb.style.boxShadow = '0 0 15px var(--accent-standby)';
+            statusText.textContent = "System Standby";
+        } else if (state === 'listening') {
+            statusOrb.style.background = 'var(--accent-listen)';
+            statusOrb.style.boxShadow = '0 0 15px var(--accent-listen)';
+            statusText.textContent = "Listening...";
         }
     }
 
     function activateCommandMode() {
-        isCommandMode = true;
-        updateUI('active');
-        outputDiv.textContent = "> Jarvis: Ready.";
-        speak("System active.");
+        isListeningForCommand = true;
+        updateUI('listening');
+        displayLog.textContent = "> Jarvis: Ready.";
+        speak("How can I help?");
         
-        // Timeout mechanism: Return to standby if no speech detected within 2 seconds
-        // Note: The Web Speech API triggers 'onresult' after a pause automatically.
+        // Auto-close if no command follows within 5 seconds
+        silenceTimer = setTimeout(resetToStandby, 5000);
     }
 
-    function handleCommand(cmd) {
-        outputDiv.textContent = `> ${cmd}`;
+    async function handleInput(cmd) {
+        displayLog.textContent = `> ${cmd}`;
         
-        if (cmd.includes('time')) {
-            speak(`The time is ${new Date().toLocaleTimeString()}`);
-        } else if (cmd.includes('weather')) {
-            speak("Weather data requires API integration.");
+        if (cmd.includes('weather')) {
+            await getWeather();
+        } else if (cmd.includes('time')) {
+            speak(`Current time is ${new Date().toLocaleTimeString()}`);
+        } else if (cmd.includes('date')) {
+            speak(`Today is ${new Date().toDateString()}`);
+        } else if (cmd.includes('clear')) {
+            displayLog.textContent = "_";
+            speak("Display cleared.");
         } else {
             speak("Command processed.");
         }
 
-        // Return to standby after processing one command
-        isCommandMode = false;
-        setTimeout(() => updateUI('standby'), 2000);
+        // 2 second pause logic after response
+        setTimeout(resetToStandby, 2000);
+    }
+
+    async function getWeather() {
+        try {
+            // Static coordinates (London) - Use navigator.geolocation for dynamic
+            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=51.5074&longitude=-0.1278&current_weather=true`);
+            const data = await res.json();
+            const temp = Math.round(data.current_weather.temperature);
+            const report = `The weather is currently ${temp} degrees Celsius in London.`;
+            displayLog.textContent = `> ${report}`;
+            speak(report);
+        } catch (e) {
+            speak("Weather service unavailable.");
+        }
+    }
+
+    function resetToStandby() {
+        isListeningForCommand = false;
+        updateUI('standby');
+        displayLog.textContent = "Awaiting wake word...";
     }
 
     function speak(text) {
         const synth = window.speechSynthesis;
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.1;
+        utterance.pitch = 0.9;
+        utterance.rate = 1.0;
         synth.speak(utterance);
     }
-</script>
 
-</body>
-</html>            background: rgba(0,0,0,0.3);
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid var(--accent-color);
-        }
-        #transcript { font-style: italic; color: var(--secondary-text); }
-
-        .controls { display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; }
-        button {
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.1s, opacity 0.2s;
-        }
-        #mic-btn { background-color: var(--accent-color); color: var(--bg-color); }
-        #clear-btn { background-color: #ef4444; color: white; }
-        button:active { transform: scale(0.95); }
-
-        #history-section { border-top: 1px solid #334155; padding-top: 1rem; }
-        .history-item {
-            background: rgba(255,255,255,0.05);
-            padding: 0.75rem;
-            border-radius: 0.4rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-            display: flex;
-            justify-content: space-between;
-        }
-        .timestamp { color: var(--secondary-text); font-size: 0.75rem; }
-    </style>
-</head>
-<body>
-
-<div id="app-container">
-    <div class="header">
-        <div id="status">Ready</div>
-        <h2>Core Assistant</h2>
-    </div>
-
-    <div id="transcript-container">
-        <div id="transcript">Awaiting voice command...</div>
-    </div>
-
-    <div class="controls">
-        <button id="mic-btn">Start Listening</button>
-        <button id="clear-btn">Clear History</button>
-    </div>
-
-    <div id="history-section">
-        <h4 style="margin-bottom: 1rem;">Command History</h4>
-        <div id="history-list"></div>
-    </div>
-</div>
-
-<script>
-    const micBtn = document.getElementById('mic-btn');
-    const clearBtn = document.getElementById('clear-btn');
-    const transcriptDiv = document.getElementById('transcript');
-    const statusDiv = document.getElementById('status');
-    const historyList = document.getElementById('history-list');
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
-    // Load history on startup
-    displayHistory();
-
-    if (!SpeechRecognition) {
-        statusDiv.textContent = "Speech API Not Supported";
-        micBtn.disabled = true;
-    } else {
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'en-US';
-
-        recognition.onstart = () => {
-            statusDiv.textContent = "Listening...";
-            micBtn.style.background = "#22c55e";
-        };
-
-        recognition.onresult = (event) => {
-            const command = event.results[0][0].transcript;
-            transcriptDiv.textContent = `"${command}"`;
-            saveToHistory(command);
-            processCommand(command.toLowerCase());
-        };
-
-        recognition.onend = () => {
-            statusDiv.textContent = "Ready";
-            micBtn.style.background = "var(--accent-color)";
-        };
-
-        micBtn.addEventListener('click', () => recognition.start());
-    }
-
-    function saveToHistory(text) {
-        const history = JSON.parse(localStorage.getItem('assistant_history') || '[]');
-        const entry = {
-            text: text,
-            time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-        };
-        history.unshift(entry); // Add to beginning
-        localStorage.setItem('assistant_history', JSON.stringify(history.slice(0, 10))); // Keep last 10
-        displayHistory();
-    }
-
-    function displayHistory() {
-        const history = JSON.parse(localStorage.getItem('assistant_history') || '[]');
-        historyList.innerHTML = history.map(item => `
-            <div class="history-item">
-                <span>${item.text}</span>
-                <span class="timestamp">${item.time}</span>
-            </div>
-        `).join('');
-    }
-
-    clearBtn.addEventListener('click', () => {
-        localStorage.removeItem('assistant_history');
-        displayHistory();
-    });
-
-    function processCommand(cmd) {
-        const synth = window.speechSynthesis;
-        const msg = new SpeechSynthesisUtterance();
-
-        if (cmd.includes('time')) {
-            msg.text = `It is currently ${new Date().toLocaleTimeString()}`;
-        } else if (cmd.includes('reminder')) {
-            msg.text = "Reminder feature requires backend integration. Local state updated.";
-        } else if (cmd.includes('clear history')) {
-            clearBtn.click();
-            msg.text = "History purged.";
-        } else {
-            msg.text = "Input logged to history.";
-        }
-        synth.speak(msg);
-    }
+    // Start recognition
+    recognition.start();
 </script>
 
 </body>
